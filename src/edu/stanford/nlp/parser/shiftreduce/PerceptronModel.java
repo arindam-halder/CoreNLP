@@ -868,6 +868,10 @@ public class PerceptronModel extends BaseModel  {
     log.info("Done training temporary model");
 
     // Errors where the parser guessed ShiftTransition instead of (Compound?)UnaryTransition
+    // This stores the Unary transtion that should have been guessed, since there is only one Shift
+    List<Transition> unaryShiftErrors = new ArrayList<>();
+    // Errors where the parser guessed (Compound?)UnaryTransition instead of ShiftTransition
+    // This stores the Unary transtion that was incorrectly guessed, since there is only one Shift
     List<Transition> shiftUnaryErrors = new ArrayList<>();
 
     // TODO: make this a parameter
@@ -880,11 +884,16 @@ public class PerceptronModel extends BaseModel  {
       if ((predicted instanceof ShiftTransition) &&
           (gold instanceof UnaryTransition || gold instanceof CompoundUnaryTransition)) {
         // Found a situation where the parser was frequently predicting Shift instead of Unary / CompoundUnary
+        unaryShiftErrors.add(predicted);
+      } else if ((gold instanceof ShiftTransition) &&
+                 (predicted instanceof UnaryTransition || predicted instanceof CompoundUnaryTransition)) {
+        // Found a situation where the parser was frequently predicting Unary / CompoundUnary instead of Shift
         shiftUnaryErrors.add(gold);
       }
     }
 
-    log.info("Most common shiftUnaryErrors: " + shiftUnaryErrors);
+    log.info("Most common gold shift, predicted unary errors: " + shiftUnaryErrors);
+    log.info("Most common gold unary, predicted shift errors: " + unaryShiftErrors);
 
     Index<Transition> newTransitions = new HashIndex<>(transitionIndex);
     // TODO: make 10 and 0.5 options
@@ -892,11 +901,11 @@ public class PerceptronModel extends BaseModel  {
     for (BinaryRemoveUnaryTransition t : newRemoveUnary) {
       log.info("Adding new BinaryRemoveUnaryTransition: " + t);
     }
-    //newRemoveUnary.forEach(newTransitions::add);
-    //List<TrainingExample> newExamples = extraShiftUnaryExamples(shiftUnaryErrors, newRemoveUnary, newTransitions, trainingData, 0.5);
+    newRemoveUnary.forEach(newTransitions::add);
+    List<TrainingExample> newExamples = extraShiftUnaryExamples(shiftUnaryErrors, newRemoveUnary, newTransitions, trainingData, 0.5);
 
     List<TrainingExample> newTraining = new ArrayList<>(trainingData);
-    //newTraining.addAll(newExamples);
+    newTraining.addAll(newExamples);
     return new Pair<>(newTransitions, newTraining);
   }
 
