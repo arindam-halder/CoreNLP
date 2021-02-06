@@ -5,6 +5,7 @@ import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -842,14 +843,87 @@ public class PerceptronModel extends BaseModel  {
     return newTransitions;
   }
 
+  static TrainingExample newExtraShiftUnaryExample(TrainingExample example,
+                                                   List<Transition> shiftUnaryErrors,
+                                                   Map<BinaryTransition, BinaryRemoveUnaryTransition> originalTransitions,
+                                                   Random random,
+                                                   double ratio) {
+    // TODO: a worthwhile experiment would be to see if using the
+    // partially trained parser to predict the best places to put
+    // these new transitions improves the results
+    List<Transition> transitions = example.transitions;
+    // TODO: we are only keeping the first transition found this way
+    // might be better to keep them all
+    int index = findTransitionInList(transitions, 0, (x) -> originalTransitions.containsKey(x));
+    if (index == transitions.size()) {
+      return null;
+    }
+
+    int unaryIndex = index;
+    int position = 0;
+    while (unaryIndex > 0) {
+      --unaryIndex;
+      if (transitions.get(unaryIndex) instanceof ShiftTransition) {
+        --position;
+        // When we have seen one more Shift than Binary, that means
+        // we have built the right side of the BinaryTransition we
+        // want to modify
+        if (position < 0) {
+          break;
+        }
+      } else if (transitions.get(unaryIndex) instanceof BinaryTransition) {
+        ++position;
+      }
+    }
+
+    if (unaryIndex <= 0) {
+      throw new AssertionError("Shouldn't fail to find the left side of the BinaryTransition");
+    }
+    // At this point we have scrolled to before the right side of the Binary Transition
+    // If the previous transition is already (Compound?)UnaryTransition,
+    // we can't use this particular example
+    if ((transitions.get(unaryIndex - 1) instanceof UnaryTransition) ||
+        (transitions.get(unaryIndex - 1) instanceof CompoundUnaryTransition)) {
+      return null;
+    }
+
+    // Now we know that this is a suitable Example for making a new fake example out of
+    if (random.nextDouble() > ratio) {
+      // nah
+      return null;
+    }
+
+    List<Transition> fakeTransitions = new ArrayList<>();
+    fakeTransitions.addAll(transitions.subList(0, unaryIndex));
+    // randomly pick an error to pretend we made
+    fakeTransitions.add(shiftUnaryErrors.get(random.nextInt(shiftUnaryErrors.size())));
+    // add the remaining transitions until the BinaryTransition we wanted to learn how to fix
+    fakeTransitions.addAll(transitions.subList(unaryIndex, index));
+    fakeTransitions.add(originalTransitions.get(transitions.get(index)));
+    fakeTransitions.addAll(transitions.subList(index+1, transitions.size()));
+    return new TrainingExample(example.binarizedTree,
+                               fakeTransitions,
+                               unaryIndex+1);
+  }
+
   static List<TrainingExample> extraShiftUnaryExamples(List<Transition> shiftUnaryErrors,
                                                        List<BinaryRemoveUnaryTransition> newRemoveUnary,
                                                        Index<Transition> newTransitions,
                                                        List<TrainingExample> trainingData,
+                                                       Random random,
                                                        double ratio) {
     List<TrainingExample> newExamples = new ArrayList<>();
 
+    Map<BinaryTransition, BinaryRemoveUnaryTransition> originalTransitions = new HashMap<>();
+    newRemoveUnary.forEach((x) -> {
+        BinaryTransition bt = new BinaryTransition(x.label, x.side, x.isRoot);
+        originalTransitions.put(bt, x);
+      });
+
     for (TrainingExample example : trainingData) {
+      TrainingExample newExample = newExtraShiftUnaryExample(example, shiftUnaryErrors, originalTransitions, random, ratio);
+      // TODO
+      //newExamples.add(newExample);
     }
     return newExamples;
   }
@@ -902,7 +976,7 @@ public class PerceptronModel extends BaseModel  {
       log.info("Adding new BinaryRemoveUnaryTransition: " + t);
     }
     newRemoveUnary.forEach(newTransitions::add);
-    List<TrainingExample> newExamples = extraShiftUnaryExamples(shiftUnaryErrors, newRemoveUnary, newTransitions, trainingData, 0.5);
+    List<TrainingExample> newExamples = extraShiftUnaryExamples(shiftUnaryErrors, newRemoveUnary, newTransitions, trainingData, random, 0.5);
 
     List<TrainingExample> newTraining = new ArrayList<>(trainingData);
     newTraining.addAll(newExamples);
