@@ -775,8 +775,9 @@ public class PerceptronModel extends BaseModel  {
     int index = start;
     int position = 0;
     while (index < transitions.size()) {
-      position = position + transitions.get(index).stackSizeChange();
-      if (position <= 0) {
+      int delta = transitions.get(index).stackSizeChange();
+      position = position + delta;
+      if (delta < 0 && position <= 0) {
         break;
       }
       ++index;
