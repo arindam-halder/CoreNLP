@@ -922,8 +922,13 @@ public class PerceptronModel extends BaseModel  {
 
     for (TrainingExample example : trainingData) {
       TrainingExample newExample = newExtraShiftUnaryExample(example, shiftUnaryErrors, originalTransitions, random, ratio);
-      // TODO
-      //newExamples.add(newExample);
+      if (newExample == null) {
+        continue;
+      }
+      //System.out.println("----- creating new transitions -----");
+      //System.out.println(example.transitions);
+      //System.out.println(newExample.transitions);
+      newExamples.add(newExample);
     }
     return newExamples;
   }
@@ -937,7 +942,7 @@ public class PerceptronModel extends BaseModel  {
                                                                                int nThreads) {
     PerceptronModel tempModel = new PerceptronModel(initialModel);
     // TODO: make this a parameter
-    // TODO: model averaging and augmenting are both kinda silly
+    // TODO: model averaging and augmenting are both kinda silly in this context
     IntCounter<Pair<Integer, Integer>> firstErrors = tempModel.trainModel(null, tagger, random, trainingData, devTreebank, nThreads, null, 5);
     log.info("Done training temporary model");
 
@@ -958,11 +963,11 @@ public class PerceptronModel extends BaseModel  {
       if ((predicted instanceof ShiftTransition) &&
           (gold instanceof UnaryTransition || gold instanceof CompoundUnaryTransition)) {
         // Found a situation where the parser was frequently predicting Shift instead of Unary / CompoundUnary
-        unaryShiftErrors.add(predicted);
+        unaryShiftErrors.add(gold);
       } else if ((gold instanceof ShiftTransition) &&
                  (predicted instanceof UnaryTransition || predicted instanceof CompoundUnaryTransition)) {
         // Found a situation where the parser was frequently predicting Unary / CompoundUnary instead of Shift
-        shiftUnaryErrors.add(gold);
+        shiftUnaryErrors.add(predicted);
       }
     }
 
