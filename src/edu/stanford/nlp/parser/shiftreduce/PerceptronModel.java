@@ -775,13 +775,9 @@ public class PerceptronModel extends BaseModel  {
     int index = start;
     int position = 0;
     while (index < transitions.size()) {
-      if (transitions.get(index) instanceof ShiftTransition) {
-        position = position + 1;
-      } else if (transitions.get(index) instanceof BinaryTransition) {
-        position = position - 1;
-        if (position <= 0) {
-          break;
-        }
+      position = position + transitions.get(index).stackSizeChange();
+      if (position <= 0) {
+        break;
       }
       ++index;
     }
@@ -863,16 +859,12 @@ public class PerceptronModel extends BaseModel  {
     int position = 0;
     while (unaryIndex > 0) {
       --unaryIndex;
-      if (transitions.get(unaryIndex) instanceof ShiftTransition) {
-        --position;
-        // When we have seen one more Shift than Binary, that means
-        // we have built the right side of the BinaryTransition we
-        // want to modify
-        if (position < 0) {
-          break;
-        }
-      } else if (transitions.get(unaryIndex) instanceof BinaryTransition) {
-        ++position;
+      position = position + transitions.get(unaryIndex).stackSizeChange();
+      // When we have seen one more Shift than Binary, that means
+      // we have built the right side of the BinaryTransition we
+      // want to modify
+      if (position > 0) {
+        break;
       }
     }
 
