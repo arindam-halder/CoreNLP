@@ -761,14 +761,12 @@ public class PerceptronModel extends BaseModel  {
                                   Predicate<Transition> pred) {
     int index = start;
     while (index < transitions.size()) {
-      // TODO: we are only keeping the first transition found this way
-      // might be better to keep them all
       if (pred.test(transitions.get(index))) {
-        break;
+        return index;
       }
       index++;
     }
-    return index;
+    return -1;
   }
 
   static int findClosingBinary(List<Transition> transitions, int start) {
@@ -795,6 +793,24 @@ public class PerceptronModel extends BaseModel  {
     return index;
   }
 
+  static int chooseRandomTransition(List<Transition> transitions, Random random, Predicate<Transition> pred) {
+    int count = 0;
+    for (Transition t : transitions) {
+      if (pred.test(t)) {
+        ++count;
+      }
+    }
+    if (count == 0) {
+      return -1;
+    }
+    int chosen = random.nextInt(count) + 1;
+    int index = 0;
+    for (int i = 0; i < chosen; ++i) {
+      index = findTransitionInList(transitions, index, pred);
+    }
+    return index;
+  }
+
   /**
    * Creates a list of BinaryRemoveUnaryTransition based on the most
    * frequently appearing BinaryTransition after one of the
@@ -816,7 +832,7 @@ public class PerceptronModel extends BaseModel  {
       // TODO: we are only keeping the first transition found this way
       // might be better to keep them all
       int index = findTransitionInList(transitions, 0, (x) -> shiftUnaryErrors.contains(x));
-      if (index == transitions.size()) {
+      if (index < 0) {
         continue;
       }
 
@@ -849,10 +865,8 @@ public class PerceptronModel extends BaseModel  {
     // partially trained parser to predict the best places to put
     // these new transitions improves the results
     List<Transition> transitions = example.transitions;
-    // TODO: we are only keeping the first transition found this way
-    // might be better to keep them all
-    int index = findTransitionInList(transitions, 0, (x) -> originalTransitions.containsKey(x));
-    if (index == transitions.size()) {
+    int index = chooseRandomTransition(transitions, random, (x) -> originalTransitions.containsKey(x));
+    if (index < 0) {
       return null;
     }
 
@@ -870,7 +884,7 @@ public class PerceptronModel extends BaseModel  {
     }
 
     if (unaryIndex <= 0) {
-      throw new AssertionError("Shouldn't fail to find the left side of the BinaryTransition");
+      throw new AssertionError("Shouldn't fail to find the left side of the BinaryTransition.  Starting index: " + index + " Transition sequence: " + transitions.subList(0, index));
     }
     // At this point we have scrolled to before the right side of the Binary Transition
     // If the previous transition is already (Compound?)UnaryTransition,
